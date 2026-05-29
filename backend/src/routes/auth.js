@@ -7,6 +7,8 @@ import { requireAuth } from '../middleware/auth.js';
 import { consumePendingCredentials } from '../recovery/recoveryStore.js';
 import { createRateLimiter } from '../middleware/rateLimiter.js';
 import { csrfTokenEndpoint } from '../middleware/csrf.js';
+import mfaManager from '../security/mfa.js';
+import { getConfig } from '../config/env.js';
 
 const router = express.Router();
 
@@ -252,5 +254,94 @@ router.get('/profile', requireAuth, (req, res) => {
  *                 csrfToken: { type: string }
  */
 router.get('/csrf-token', csrfTokenEndpoint);
+
+/**
+ * @swagger
+ * /api/auth/mfa/setup:
+ *   post:
+ *     summary: Setup MFA (TOTP) for authenticated user
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: MFA setup initiated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 secret: { type: string }
+ *                 qrCode: { type: string }
+ *                 backupCodes: { type: array, items: { type: string } }
+ *       401:
+ *         description: Unauthorized
+ */
+router.post('/mfa/setup', requireAuth, async (req, res) => {
+  try {
+    const { secret, qrCode } = mfaManager.generateSecret(req.user.sub);
+    const backupCodes = mfaManager.enableMFA(req.user.sub, secret);
+    
+    // In production, encrypt and store secret in database
+    const encryptionKey = getConfig().security.mfaEncryptionKey || 'default-key';
+    const encryptedSecret = mfaManager.encryptSecret(secret, encryptionKey);
+    
+    res.json({
+      secret,
+      qrCode,
+      backupCodes,
+      message: 'Scan the QR code with your authenticator app'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/mfa/verify:
+ *   post:
+ *     summary: Verify MFA token to complete setup
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [token]
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: 6-digit TOTP code
+ *     responses:
+ *       200:
+ *         description: MFA verified and enabled
+ *       403:
+ *         description: Invalid MFA token
+ */
+router.post('/mfa/verify', requireAuth, (req, res) => {
+  const { token } = req.body;
+  
+  if (!token) {
+    return res.status(400).json({ error: 'Token required' });
+  }
+
+  try {
+    const mfa = mfaManager.userMFA.get(req.user.sub);
+    if (!mfa) {
+      return res.status(400).json({ error: 'MFA setup not initiated' });
+    }
+
+    mfaManager.verifyTOTP(req.user.sub, token, mfa.secret);
+    
+    // In production, mark MFA as verified in database
+    res.json({ message: 'MFA enabled successfully' });
+  } catch (error) {
+    res.status(403).json({ error: error.message });
+  }
+});
 
 export default router;
