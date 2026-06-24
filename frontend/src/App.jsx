@@ -958,15 +958,18 @@ function App() {
                   <h2 style={{ marginBottom: 16 }}>Advanced Features</h2>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
                     {[
-                      { id: 'multisig', label: '🔐 Multi-Sig' },
-                      { id: 'kyc', label: '📋 KYC' },
-                      { id: 'notifications', label: '🔔 Notifications' },
-                      { id: 'backup', label: '💾 Backup', action: () => setShowBackupSettings(true) },
-                      ...(userRole === 'admin' ? [{ id: 'compliance', label: '🛡️ Compliance', action: () => setShowComplianceDashboard(true) }] : []),
+                      { id: 'multisig', label: '🔐 Multi-Sig', ariaLabel: 'Toggle multi-signature transactions panel' },
+                      { id: 'kyc', label: '📋 KYC', ariaLabel: 'Toggle KYC identity verification panel' },
+                      { id: 'notifications', label: '🔔 Notifications', ariaLabel: 'Toggle notification preferences panel' },
+                      { id: 'backup', label: '💾 Backup', ariaLabel: 'Open backup settings', action: () => setShowBackupSettings(true) },
+                      ...(userRole === 'admin' ? [{ id: 'compliance', label: '🛡️ Compliance', ariaLabel: 'Open compliance dashboard', action: () => setShowComplianceDashboard(true) }] : []),
                     ].map((section) => (
                       <button
                         key={section.id}
                         type="button"
+                        aria-label={section.ariaLabel}
+                        aria-expanded={!section.action ? activeSettingsSection === section.id : undefined}
+                        aria-controls={!section.action ? `advanced-section-${section.id}` : undefined}
                         onClick={() => {
                           if (section.action) {
                             section.action();
@@ -992,7 +995,7 @@ function App() {
 
                   <AnimatePresence mode="wait">
                     {activeSettingsSection === 'multisig' && (
-                      <motion.div key="multisig" variants={v.fadeSlide} initial="hidden" animate="visible" exit="exit">
+                      <motion.div id="advanced-section-multisig" key="multisig" variants={v.fadeSlide} initial="hidden" animate="visible" exit="exit">
                         <Suspense fallback={<Spinner />}>
                           <MultiSigTransactions publicKey={account.publicKey} />
                         </Suspense>
@@ -1002,7 +1005,7 @@ function App() {
                       </motion.div>
                     )}
                     {activeSettingsSection === 'kyc' && (
-                      <motion.div key="kyc" variants={v.fadeSlide} initial="hidden" animate="visible" exit="exit">
+                      <motion.div id="advanced-section-kyc" key="kyc" variants={v.fadeSlide} initial="hidden" animate="visible" exit="exit">
                         <Suspense fallback={<Spinner />}>
                           <KYCForm />
                         </Suspense>
@@ -1012,7 +1015,7 @@ function App() {
                       </motion.div>
                     )}
                     {activeSettingsSection === 'notifications' && (
-                      <motion.div key="notifications" variants={v.fadeSlide} initial="hidden" animate="visible" exit="exit">
+                      <motion.div id="advanced-section-notifications" key="notifications" variants={v.fadeSlide} initial="hidden" animate="visible" exit="exit">
                         <NotificationPreferences />
                       </motion.div>
                     )}
